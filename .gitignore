@@ -216,8 +216,3 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
-<<<<<<< HEAD
-data/
-.idea/
-=======
->>>>>>> 7dfb6d2fef1f4aa400412d5c2071e84ce840dc42
