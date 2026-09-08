@@ -97,8 +97,16 @@ def create_ml_data_mart(dw_table_id, data_mart_table_id):
     client = bigquery.Client()
 
     query = f"""
-        CREATE OR REPLACE {data_mart_table_id}
+        CREATE OR REPLACE TABLE `{data_mart_table_id}`
         AS SELECT
-        DATA_TRUNC(`week`,data) as week
-
+        DATE_TRUNC(date,`week`) as week,
+        SAFE_DIVIDE(SUM(GoldsteinScale * Total_mentions),sum(Total_mentions)) as WeightedGoldsteinScale,
+        SAFE_DIVIDE(SUM(AvgTone * Total_mentions),sum(Total_mentions)) as WeightedAvgTone,
+        SUM(Total_mentions) as TotalMentions,
+        Country_code
+        FROM `{dw_table_id}`
+        GROUP BY week, Country_code
+        ORDER BY week, Country_code;
         """
+    job = client.query(query)
+    job.result()
