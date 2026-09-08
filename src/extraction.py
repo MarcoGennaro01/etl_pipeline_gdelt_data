@@ -1,4 +1,5 @@
 import os
+<<<<<<< HEAD
 import zipfile
 
 from gzip import GzipFile
@@ -55,3 +56,19 @@ def upload_to_bucket(gz_buffer, filename, BUCKET_NAME):
     bucket = client.bucket(BUCKET_NAME)
     blob = bucket.blob(destination)
     blob.upload_from_file(gz_buffer, content_type="application/gzip")
+=======
+from dotenv import load_dotenv
+from google.cloud import bigquery
+
+load_dotenv()
+project_id = os.getenv("GCP_PROJECT_ID")
+print(project_id)
+
+client = bigquery.Client()
+
+sql = """
+SELECT 
+    PARSE_DATE('%Y%m%d', CAST(DIV(DATE,10000) AS STRING)) AS date,
+    SPLIT(V2Locations)
+"""
+>>>>>>> b46710e388055767a325bffed16c31f837d5fa98
