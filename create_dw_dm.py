@@ -16,6 +16,6 @@ if __name__ == "__main__":
     WH_TABLE_ID = f"{PROJECT_ID}.{DATASET_ID}.{WH_TABLE_NAME}"
     DM_TABLE_ID = f"{PROJECT_ID}.{DATASET_ID}.{DM_TABLE_NAME}"
 
-    # load_data_bq(STAGING_TABLE_ID, BUCKET_NAME)
+    load_data_bq(STAGING_TABLE_ID, BUCKET_NAME)
     create_data_wh(STAGING_TABLE_ID, WH_TABLE_ID, BUCKET_NAME)
     create_ml_data_mart(WH_TABLE_ID, DM_TABLE_ID)

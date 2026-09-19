@@ -216,3 +216,13 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Terraform
+*.tfvars
+*.tfstate
+*.hcl
+providers/
+main.ipynb
+
+
+notebooks/

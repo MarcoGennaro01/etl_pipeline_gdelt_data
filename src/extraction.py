@@ -23,6 +23,9 @@ def get_dates_between(start_date, end_date):
 
 
 def extract_single_date(date_obj, BUCKET_NAME):
+    """
+    Extracts the GDELT data for a single date passed as a date class object, converts it to a .gz file and calls the upload_to_bucket function.
+    """
     file_name = "{}.export.CSV.zip".format(date_obj.strftime("%Y%m%d"))
     dw_link = f"https://data.gdeltproject.org/events/{file_name}"
     try:

@@ -7,8 +7,8 @@ import json
 from pyspark.sql import SparkSession
 from pyspark.ml.feature import VectorAssembler
 from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
-from pyspark.ml.evaluation import RegressionEvaluator
-from xgboost.spark import SparkXGBRegressor
+from pyspark.ml.evaluation import BinaryClassificationEvaluator
+from xgboost.spark import SparkXGBClassifier
 from google.cloud import storage
 
 def get_session():
@@ -24,11 +24,11 @@ def read_clean_data(input_data_table_id, spark):
 
     df_clean = df.dropna(
         subset=[
-            "Prev1_WeightedGoldsteinScale",
-            "Prev2_WeightedGoldsteinScale",
-            "Target_AvgTone",
-            "Prev1_WeightedAvgTone",
-            "Prev2_WeightedAvgTone",
+            "avg_tone_ma_5w",
+            "goldstein_ma_5w",
+            "Target",
+            "goldstein_sd_5w",
+            "avg_tone_sd_5w",
         ]
     )
     return df_clean
@@ -37,7 +37,7 @@ def prepare_split_data(df, cutoff_date="2025-01-01"):
     feature_cols = [
         col
         for col in df.columns
-        if col not in ["Target_AvgTone", "Country_code", "week"]
+        if col not in ["Target", "Country_code", "week"]
     ]
 
     assembler = VectorAssembler(
@@ -45,58 +45,49 @@ def prepare_split_data(df, cutoff_date="2025-01-01"):
     )
     df_transformed = assembler.transform(df)
 
-    train_df = df_transformed.filter(df_transformed["week"] < cutoff_date)
-    test_df = df_transformed.filter(df_transformed["week"] >= cutoff_date)
+    train_df = df_transformed.filter(df_transformed["week"] < cutoff_date).cache()
+    test_df = df_transformed.filter(df_transformed["week"] >= cutoff_date).cache()
+
+    train_df.count()
+    test_df.count()
 
     return train_df, test_df, feature_cols
 
-def train_model_XGB(train_df, workers=3):
-    regressor = SparkXGBRegressor(
-        features_col="features", 
-        label_col="Target_AvgTone", 
+def train_model_XGB(train_df, workers=8):
+    classifier = SparkXGBClassifier(
+        label_col="Target",
         num_workers=workers,
-        objective="reg:squarederror",
+        eval_metric="logloss",
         tree_method="hist",
-        device="cpu"
+        max_depth=6,
+        learning_rate=0.1,
+        subsample=0.8,
+        scale_pos_weight=1.61
     )
 
-    param_grid = (ParamGridBuilder()
-            .addGrid(regressor.max_depth, [4, 6, 8, 12])
-            .addGrid(regressor.learning_rate, [0.03, 0.1])
-            .addGrid(regressor.subsample, [0.7, 0.9])
-            .build())
+    model = classifier.fit(train_df)
 
-    evaluator = RegressionEvaluator(
-        labelCol="Target_AvgTone", 
-        predictionCol="prediction", 
-        metricName="rmse"
-    )
-
-    cv = CrossValidator(
-        estimator=regressor,
-        estimatorParamMaps=param_grid,
-        evaluator=evaluator,
-        numFolds=3
-    )
-    best_model = cv.fit(train_df).bestModel
-    return best_model
+    return model
 
 def evaluate_model(model, test_df):
-    predictions = model.transform(test_df)
-    results = {}
+    predictions = model.transform(test_df).cache()
+
+    evaluator = BinaryClassificationEvaluator(
+        labelCol="Target",
+        rawPredictionCol="rawPrediction",
+        metricName="areaUnderROC",
+    )
+    auc_score = round(float(evaluator.evaluate(predictions)), 4)
+    accuracy = round(float((tp + tn) / total), 4) if total > 0 else 0.0
+    specificity = round(float(tn / (tn + fp)), 4) if (tn + fp) > 0 else 0.0
+
     metrics = {
-        "rmse": "rmse",
-        "mae": "mae",
-        "r2": "r2"
+        "auc_roc": auc_score,
+        "accuracy": accuracy,
+        "specificity": specificity
     }
-    for key, metric in metrics.items():
-        evaluator = RegressionEvaluator(
-            labelCol="Target_AvgTone",
-            metricName=metric,
-            predictionCol="prediction"
-        )
-        results[key] = round(float(evaluator.evaluate(predictions)), 4)
-    return results
+
+    return metrics
 
 def export_metrics(metrics, bucket_name, blob_path):
     client = storage.Client()
@@ -142,7 +133,7 @@ if __name__ == "__main__":
     try:
         df_clean = read_clean_data(DM_TABLE_ID, spark)
         tr_df, te_df, feature_cols = prepare_split_data(df_clean)
-        model = train_model_XGB(tr_df, workers=2)
+        model = train_model_XGB(tr_df, workers=8)
 
         metrics_blob_path = "metrics/xgboost_metrics.json"
         export_metrics(evaluate_model(model, te_df), BUCKET_NAME, metrics_blob_path)
