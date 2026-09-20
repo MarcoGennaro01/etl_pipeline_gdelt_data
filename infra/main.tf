@@ -10,32 +10,60 @@ terraform {
 }
 
 provider "google" {
-  project = var.gcp_project_id
-  region  = var.gcp_region
+  region = var.gcp_region
 }
 
+resource "google_project" "test" {
+  name= var.gcp_project_id
+  project_id= var.gcp_project_id
+  billing_account= var.gcp_billing_account
+}
 
-# Cloud Storage
+# APIs
+resource "google_project_service" "storage" {
+  project = google_project.test.project_id
+  service = "storage.googleapis.com"
+
+  disable_dependent_services = true
+}
+
+resource "google_project_service" "bigquery" {
+  project = google_project.test.project_id
+  service = "bigquery.googleapis.com"
+
+  disable_dependent_services = true
+}
+
+resource "google_project_service" "dataproc" {
+  project = google_project.test.project_id
+  service = "dataproc.googleapis.com"
+
+  disable_dependent_services = true
+}
+
+# 4. Cloud Storage
 resource "google_storage_bucket" "gdelt" {
   name     = var.gcp_bucket_name
-  project  = var.gcp_project_id
+  project  = google_project.test.project_id
   location = var.gcp_region
 
   uniform_bucket_level_access = true
+
+  depends_on = [google_project_service.storage]
 }
 
-
-# BigQuery Dataset
+# 5. BigQuery Dataset
 resource "google_bigquery_dataset" "gdelt" {
-  project    = var.gcp_project_id
+  project    = google_project.test.project_id
   dataset_id = var.big_query_dataset
   location   = var.gcp_region
+
+  depends_on = [google_project_service.bigquery]
 }
 
-
-# BigQuery - Staging
+# 6. BigQuery - Staging
 resource "google_bigquery_table" "staging" {
-  project    = var.gcp_project_id
+  project    = google_project.test.project_id
   dataset_id = google_bigquery_dataset.gdelt.dataset_id
   table_id   = var.staging_table_name
 
@@ -43,21 +71,3 @@ resource "google_bigquery_table" "staging" {
 }
 
 
-# BigQuery - Warehouse
-resource "google_bigquery_table" "warehouse" {
-  project    = var.gcp_project_id
-  dataset_id = google_bigquery_dataset.gdelt.dataset_id
-  table_id   = var.wh_table_name
-
-  deletion_protection = false
-}
-
-
-# BigQuery - ML Mart
-resource "google_bigquery_table" "mart_ml" {
-  project    = var.gcp_project_id
-  dataset_id = google_bigquery_dataset.gdelt.dataset_id
-  table_id   = var.dm_table_name
-
-  deletion_protection = false
-}

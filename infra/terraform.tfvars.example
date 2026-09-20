@@ -1,4 +1,5 @@
 gcp_project_id="your-project-id"
+gcp_billing_account = "your_billing_account_id"
 
 gcp_region="us-central1"
 

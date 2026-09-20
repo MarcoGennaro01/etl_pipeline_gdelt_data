@@ -43,7 +43,11 @@ def extract_single_date(date_obj, BUCKET_NAME):
         print(e)
 
 
-def extract_load_data(start_date, end_date, BUCKET_NAME, max_workers=8):
+def extract_load_data(start_date, end_date, BUCKET_NAME, max_workers=16):
+    """
+    Orchestrator function, coordinates get_dates_between and extract_single_date
+    exploiting multithreading
+    """
     try:
         dates = get_dates_between(start_date, end_date)
         with ThreadPoolExecutor(max_workers) as mt:
@@ -53,6 +57,10 @@ def extract_load_data(start_date, end_date, BUCKET_NAME, max_workers=8):
 
 
 def upload_to_bucket(gz_buffer, filename, BUCKET_NAME):
+    """
+    Take as input the buffer file, a filename and a GCP Bucket Name,
+    uploads file in gcp bucket in the ./data directory
+    """
     destination = f"data/{filename}"
     client = storage.Client()
     bucket = client.bucket(BUCKET_NAME)

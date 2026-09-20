@@ -2,6 +2,12 @@ from google.cloud import bigquery
 
 
 def load_data_bq(table_id, bucket_name):
+    """
+    Creates staging table for further transformation
+    Takes table_id and bucket name as inputs, creates a table with the
+    following schema,loads .gz files in data/ directory.
+    Method is WRITE_TRUNCATE, so existing tables will be overwritten.
+    """
     client = bigquery.Client()
     uris = f"gs://{bucket_name}/data/*.gz"
     schema = [
@@ -68,7 +74,7 @@ def load_data_bq(table_id, bucket_name):
         source_format=bigquery.SourceFormat.CSV,
         autodetect=False,
         schema=schema,
-        write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
+        write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE,
         field_delimiter="\t",
     )
     print("Loading data in BigQuery...")
@@ -78,6 +84,9 @@ def load_data_bq(table_id, bucket_name):
 
 
 def create_data_wh(staging_table_id, wh_table_id, bucket_name):
+    """
+    Creates data warehouse table.
+    """
     client = bigquery.Client()
     query = f"""
        CREATE OR REPLACE TABLE `{wh_table_id}`
@@ -99,6 +108,9 @@ def create_data_wh(staging_table_id, wh_table_id, bucket_name):
 
 
 def create_ml_data_mart(dw_table_id, data_mart_table_id):
+    """
+    Creates data mart ready for ml algorithms
+    """
     client = bigquery.Client()
     query = f"""
     CREATE OR REPLACE TABLE `{data_mart_table_id}` AS
@@ -194,7 +206,7 @@ def create_ml_data_mart(dw_table_id, data_mart_table_id):
         STDDEV(WeightedGoldsteinScale) OVER (PARTITION BY Country_code ORDER BY week ROWS BETWEEN 5 PRECEDING AND 1 PRECEDING ) AS goldstein_sd_5w,
         CASE
             WHEN
-            ((LEAD(WeightedAvgTone, 1) OVER (PARTITION BY Country_code ORDER BY week)) - WeightedAvgTone)>0 THEN 1
+            ((LEAD(WeightedAvgTone, 1) OVER (PARTITION BY Country_code ORDER BY week)) - WeightedAvgTone)<0 THEN 1
             ELSE 0
         END as Target
     FROM PROCESSED_DATA
