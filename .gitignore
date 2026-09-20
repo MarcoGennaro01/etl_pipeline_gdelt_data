@@ -222,7 +222,5 @@ __marimo__/
 *.tfstate
 *.hcl
 providers/
-main.ipynb
-
-
-notebooks/
+.terraform/
+documentation.ipynb
