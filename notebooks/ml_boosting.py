@@ -53,7 +53,7 @@ def prepare_split_data(df, cutoff_date="2025-01-01"):
 
     return train_df, test_df, feature_cols
 
-def train_model_XGB(train_df, workers=8):
+def train_model_XGB(train_df, workers=4):
     classifier = SparkXGBClassifier(
         label_col="Target",
         num_workers=workers,
@@ -61,8 +61,7 @@ def train_model_XGB(train_df, workers=8):
         tree_method="hist",
         max_depth=6,
         learning_rate=0.1,
-        subsample=0.8,
-        scale_pos_weight=1.61
+        subsample=0.8
     )
 
     model = classifier.fit(train_df)
@@ -77,6 +76,30 @@ def evaluate_model(model, test_df):
         rawPredictionCol="rawPrediction",
         metricName="areaUnderROC",
     )
+    cm_df = (
+        predictions
+        .groupBy("Target", "prediction")
+        .count()
+        .collect()
+    )
+
+    tp = fp = tn = fn = 0
+
+    for row in cm_df:
+        actual = int(row["Target"])
+        pred = int(row["prediction"])
+        count = int(row["count"])
+
+        if actual == 1 and pred == 1:
+            tp = count
+        elif actual == 0 and pred == 1:
+            fp = count
+        elif actual == 0 and pred == 0:
+            tn = count
+        elif actual == 1 and pred == 0:
+            fn = count
+
+    total = tp + fp + tn + fn
     auc_score = round(float(evaluator.evaluate(predictions)), 4)
     accuracy = round(float((tp + tn) / total), 4) if total > 0 else 0.0
     specificity = round(float(tn / (tn + fp)), 4) if (tn + fp) > 0 else 0.0
@@ -133,7 +156,7 @@ if __name__ == "__main__":
     try:
         df_clean = read_clean_data(DM_TABLE_ID, spark)
         tr_df, te_df, feature_cols = prepare_split_data(df_clean)
-        model = train_model_XGB(tr_df, workers=8)
+        model = train_model_XGB(tr_df, workers=4)
 
         metrics_blob_path = "metrics/xgboost_metrics.json"
         export_metrics(evaluate_model(model, te_df), BUCKET_NAME, metrics_blob_path)

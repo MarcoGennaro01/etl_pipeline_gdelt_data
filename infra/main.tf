@@ -23,14 +23,12 @@ resource "google_project" "test" {
 resource "google_project_service" "storage" {
   project = google_project.test.project_id
   service = "storage.googleapis.com"
-
   disable_dependent_services = true
 }
 
 resource "google_project_service" "bigquery" {
   project = google_project.test.project_id
   service = "bigquery.googleapis.com"
-
   disable_dependent_services = true
 }
 
@@ -47,6 +45,7 @@ resource "google_storage_bucket" "gdelt" {
   project  = google_project.test.project_id
   location = var.gcp_region
 
+  force_destroy = true
   uniform_bucket_level_access = true
 
   depends_on = [google_project_service.storage]
@@ -58,6 +57,7 @@ resource "google_bigquery_dataset" "gdelt" {
   dataset_id = var.big_query_dataset
   location   = var.gcp_region
 
+  delete_contents_on_destroy = true
   depends_on = [google_project_service.bigquery]
 }
 
